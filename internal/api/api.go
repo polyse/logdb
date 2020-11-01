@@ -104,6 +104,7 @@ func (a *API) HandleNewLog(ctx *atr.RequestCtx) error {
 			ctx.Response.SetStatusCode(http.StatusServiceUnavailable)
 			err = fmt.Errorf("too many goroutines")
 		}
+		a.errChan <- err
 		return err
 	}
 	data := ctx.Request.Body()
