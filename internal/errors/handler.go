@@ -21,7 +21,7 @@ type Config struct {
 
 func NewHandler(pCtx context.Context, conf *Config) (context.Context, chan<- error) {
 	handler := &Handler{
-		errChan:  make(chan error),
+		errChan:  make(chan error, 100),
 		errCount: 0,
 		conf:     conf,
 		ticker:   time.NewTicker(conf.ResetTime),

@@ -13,12 +13,11 @@ import (
 )
 
 type API struct {
-	a             *adapter.Adapter
-	server        *atr.Atreugo
-	listener      net.Listener
-	concurrencyCh chan<- struct{}
-	timeout       time.Duration
-	errChan       chan<- error
+	ad    adapter.Adapter
+	srv   *atr.Atreugo
+	ln    net.Listener
+	conCh chan struct{}
+	errCh chan<- error
 }
 
 type Config struct {
@@ -33,7 +32,7 @@ type Context struct {
 	Ctx context.Context
 }
 
-func NewAdapterApi(ctx context.Context, conf *Config, adapter *adapter.Adapter, errCh chan<- error) (*API, func(), error) {
+func NewAdapterApi(ctx context.Context, conf *Config, adapter adapter.Adapter, errCh chan<- error) (*API, func(), error) {
 	file, err := os.Open(os.DevNull)
 	if err != nil {
 		return nil, nil, err
@@ -47,21 +46,26 @@ func NewAdapterApi(ctx context.Context, conf *Config, adapter *adapter.Adapter, 
 		LogOutput:        file,
 	}
 
-	listener, err := net.Listen(conf.Network, conf.Addr)
+	l, err := net.Listen(conf.Network, conf.Addr)
 	if err != nil {
 		return nil, nil, err
 	}
 	api := &API{
-		a:             adapter,
-		server:        nil,
-		listener:      listener,
-		concurrencyCh: make(chan<- struct{}, conf.MaxDbConn),
-		timeout:       conf.Timeout,
-		errChan:       errCh,
+		ad:    adapter,
+		srv:   nil,
+		ln:    l,
+		conCh: make(chan struct{}, conf.MaxDbConn),
+		errCh: errCh,
 	}
-	server := atr.New(atrCfg)
 
-	apiRouter := server.NewGroupPath("/api")
+	return api, api.initRouter(ctx, l, atrCfg), err
+
+}
+
+func (a *API) initRouter(ctx context.Context, l net.Listener, cfg atr.Config) func() {
+	srv := atr.New(cfg)
+
+	apiRouter := srv.NewGroupPath("/api")
 	apiRouter.UseBefore(func(rctx *atr.RequestCtx) error {
 		cc := &Context{
 			RequestCtx: rctx,
@@ -70,51 +74,54 @@ func NewAdapterApi(ctx context.Context, conf *Config, adapter *adapter.Adapter, 
 		return cc.Next()
 	})
 	apiRouter.UseAfter(logRequest())
-	apiRouter.PUT("/logs/{tag:*}", api.HandleNewLog)
+	apiRouter.PUT("/logs/{tag:*}", a.HandleNewLog)
 	apiRouter.GET("/health", func(ctx *atr.RequestCtx) error {
 		log.Debug().Msg("health check")
 		ctx.Response.SetStatusCode(http.StatusOK)
 		ctx.Response.AppendBodyString("OK")
 		return nil
 	})
+
 	log.Debug().
-		Interface("paths", server.ListPaths()).
-		Str("network", listener.Addr().Network()).
-		Str("listening", listener.Addr().String()).
+		Interface("paths", srv.ListPaths()).
+		Str("network", l.Addr().Network()).
+		Str("listening", l.Addr().String()).
 		Msg("server initialized")
 
-	api.server = server
+	a.srv = srv
 
-	return api, func() {
-		if err := listener.Close(); err != nil {
+	return func() {
+		if err := l.Close(); err != nil {
 			log.Err(err).Msg("can not stop listener")
 		}
-	}, err
+	}
 }
 
 func (a *API) HandleNewLog(ctx *atr.RequestCtx) error {
 	select {
-	case a.concurrencyCh <- struct{}{}:
+	case a.conCh <- struct{}{}:
+		log.Debug().Msg("try to write")
 	default:
 		var err error
-		if err = a.a.DatabaseHealthCheck(); err != nil {
+		if err = a.ad.DatabaseHealthCheck(); err != nil {
 			ctx.Response.SetStatusCode(http.StatusGatewayTimeout)
 			log.Warn().Msg("database is unavailable")
 		} else {
 			ctx.Response.SetStatusCode(http.StatusServiceUnavailable)
 			err = fmt.Errorf("too many goroutines")
 		}
-		a.errChan <- err
+		a.errCh <- err
 		return err
 	}
 	data := ctx.Request.Body()
 	tag := ctx.UserValue("tag").(string)
 	go func(data []byte, tag string) {
-		if err := a.a.SaveData(data, tag); err != nil {
-			a.errChan <- err
+		if err := a.ad.SaveData(data, tag); err != nil {
+			a.errCh <- err
 		}
 	}(data, tag)
 	ctx.Response.SetStatusCode(http.StatusAccepted)
+	<-a.conCh
 	return nil
 }
 
@@ -139,5 +146,5 @@ func logRequest() atr.Middleware {
 }
 
 func (a *API) Run() error {
-	return a.server.ServeGracefully(a.listener)
+	return a.srv.ServeGracefully(a.ln)
 }

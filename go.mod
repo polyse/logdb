@@ -5,7 +5,10 @@ go 1.15
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/docker/go-connections v0.4.0
+	github.com/gogo/protobuf v1.2.0
+	github.com/google/uuid v1.1.2
 	github.com/google/wire v0.4.0
+	github.com/mitchellh/mapstructure v1.3.3
 	github.com/rs/zerolog v1.20.0
 	github.com/savsgio/atreugo/v11 v11.5.3
 	github.com/senyast4745/meilisearch-go v0.12.2-0.20201028233758-4a594e8eadaa

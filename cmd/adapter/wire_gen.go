@@ -16,11 +16,11 @@ import (
 func initLogAdapterApi(ctx context.Context, c *config, ch chan<- error) (*api.API, func(), error) {
 	apiConfig := createApiConfig(c)
 	adapterConfig := createLogAdapterConfig(c)
-	adapterAdapter, err := adapter.NewAdapter(adapterConfig)
+	simpleAdapter, err := adapter.NewAdapter(adapterConfig)
 	if err != nil {
 		return nil, nil, err
 	}
-	apiAPI, cleanup, err := api.NewAdapterApi(ctx, apiConfig, adapterAdapter, ch)
+	apiAPI, cleanup, err := api.NewAdapterApi(ctx, apiConfig, simpleAdapter, ch)
 	if err != nil {
 		return nil, nil, err
 	}

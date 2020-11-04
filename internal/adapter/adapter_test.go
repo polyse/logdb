@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"github.com/polyse/logDb/test/mock"
 	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/stretchr/testify/mock"
@@ -19,7 +20,7 @@ import (
 
 type AdapterUnitTestSuite struct {
 	suite.Suite
-	adapter    *Adapter
+	adapter    *SimpleAdapter
 	mockClient *mocks.ClientInterface
 }
 
@@ -27,7 +28,7 @@ var testErr = fmt.Errorf("test error")
 
 func (s *AdapterUnitTestSuite) SetupTest() {
 	mockClient := new(mocks.ClientInterface)
-	adapter := &Adapter{
+	adapter := &SimpleAdapter{
 		c: mockClient,
 		ind: map[string]*ml.Index{
 			"test": {},
@@ -165,7 +166,54 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 	})
 }
 
-func (s *AdapterUnitTestSuite) Test_SaveData_Normal_Mode() {
+func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Presents_local() {
+	// given
+
+	s.adapter.keys = map[string]struct{}{
+		"test":       {},
+		"@timestamp": {},
+		"@id":        {},
+	}
+	testIndexUid := "test"
+	testData := struct {
+		Test string `json:"test"`
+	}{
+		Test: "test message",
+	}
+	bytesData, err := json.Marshal(testData)
+	s.NoError(err, "no error while marshaling test data")
+
+	mockDocuments := new(mocks.APIDocuments)
+
+	startTestTime := time.Now()
+
+	type testActualData struct {
+		Id        string `json:"@id"`
+		Test      string `json:"test"`
+		Timestamp int64  `json:"@timestamp"`
+	}
+
+	mockDocuments.On("AddOrReplace", mock.Anything).Times(1).Run(func(args mock.Arguments) {
+		actualRaw := args.Get(0).(ml.RawType)
+		actual := make([]testActualData, 0, 0)
+		err := json.Unmarshal(actualRaw, &actual)
+
+		s.NoError(err)
+		s.Equal(testData.Test, actual[0].Test)
+		s.WithinDuration(startTestTime, time.Unix(actual[0].Timestamp, 0), 1*time.Second)
+	}).Return(nil, nil)
+
+	s.mockClient.On("Documents", mock.Anything).Return(mockDocuments)
+
+	//when
+	err = s.adapter.SaveData(bytesData, testIndexUid)
+
+	//then
+	s.NoError(err)
+	mockDocuments.AssertExpectations(s.T())
+}
+
+func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Not_Presents_local() {
 	// given
 	testIndexUid := "test"
 	testData := struct {
@@ -183,16 +231,18 @@ func (s *AdapterUnitTestSuite) Test_SaveData_Normal_Mode() {
 	type testActualData struct {
 		Test      string `json:"test"`
 		Timestamp int64  `json:"@timestamp"`
+		Id        string `json:"@id"`
 	}
 
-	mockDocuments.On("AddOrReplace", mock.Anything).Run(func(args mock.Arguments) {
-		actualRaw := args.Get(0).(ml.RawType)
-		actual := make([]testActualData, 0, 0)
-		err := json.Unmarshal(actualRaw, &actual)
+	mockDocuments.On("AddOrReplace", mock.Anything).Times(2).Run(func(args mock.Arguments) {
+		if actualRaw, ok := args.Get(0).(ml.RawType); ok {
+			actual := make([]testActualData, 0, 0)
+			err := json.Unmarshal(actualRaw, &actual)
 
-		s.NoError(err)
-		s.Equal(testData.Test, actual[0].Test)
-		s.WithinDuration(startTestTime, time.Unix(actual[0].Timestamp, 0), 1*time.Second)
+			s.NoError(err)
+			s.Equal(testData.Test, actual[0].Test)
+			s.WithinDuration(startTestTime, time.Unix(actual[0].Timestamp, 0), 1*time.Second)
+		}
 	}).Return(nil, nil)
 
 	s.mockClient.On("Documents", mock.Anything).Return(mockDocuments)
@@ -200,6 +250,7 @@ func (s *AdapterUnitTestSuite) Test_SaveData_Normal_Mode() {
 	expKeys := map[string]struct{}{
 		"test":       {},
 		"@timestamp": {},
+		"@id":        {},
 	}
 
 	//when
@@ -235,7 +286,7 @@ func (s *AdapterUnitTestSuite) Test_SaveData_With_Error() {
 
 type AdapterIntegrationTestSuite struct {
 	suite.Suite
-	adapter  *Adapter
+	adapter  *SimpleAdapter
 	mlC      tsc.Container
 	ctx      context.Context
 	dbClient ml.ClientInterface
@@ -342,15 +393,13 @@ func (s *AdapterIntegrationTestSuite) Test_GetOrCreateIndex_Error() {
 func (s *AdapterIntegrationTestSuite) Test_SaveData_Normal_Mode() {
 	testIndexUid := "test"
 	testData := struct {
-		TestId string `json:"testId"`
-		Test   string `json:"test"`
+		Test string `json:"test"`
 	}{
-		TestId: "test1",
-		Test:   "test message",
+		Test: "test message",
 	}
 
 	expKeys := map[string]struct{}{
-		"testId":     {},
+		"@id":        {},
 		"test":       {},
 		"@timestamp": {},
 	}
@@ -365,9 +414,9 @@ func (s *AdapterIntegrationTestSuite) Test_SaveData_Normal_Mode() {
 	s.NoError(err)
 
 	type testActualData struct {
-		TestId    string `json:"testId"`
-		Test      string `json:"test"`
-		Timestamp int64  `json:"@timestamp"`
+		TestId    string `json:"@id" mapstructure:"@id"`
+		Test      string `json:"test" mapstructure:"test"`
+		Timestamp int64  `json:"@timestamp" mapstructure:"@timestamp"`
 	}
 
 	var actual testActualData
@@ -381,10 +430,13 @@ func (s *AdapterIntegrationTestSuite) Test_SaveData_Normal_Mode() {
 		s.Equal(ml.UpdateStatusProcessed, updStat)
 	}
 
-	err = s.dbClient.Documents(testIndexUid).Get("test1", &actual)
+	resp, err := s.dbClient.Search(testIndexUid).Search(ml.SearchRequest{
+		Query: "test message",
+	})
 	s.NoError(err)
+	data := resp.Hits[0].(map[string]interface{})
+	err = mapstructure.Decode(data, &actual)
 	s.WithinDuration(startTime, time.Unix(actual.Timestamp, 0), 3*time.Second)
-	s.Equal(testData.TestId, actual.TestId)
 	s.Equal(testData.Test, actual.Test)
 	s.Equal(expKeys, s.adapter.keys)
 }
@@ -393,16 +445,6 @@ func (s *AdapterIntegrationTestSuite) Test_SaveData_Parse_Error() {
 	testIndexUid := "test"
 
 	incorrectData := []byte("{\"test:")
-
-	err := s.adapter.SaveData(incorrectData, testIndexUid)
-	s.Error(err)
-
-}
-
-func (s *AdapterIntegrationTestSuite) Test_SaveData_Db_Error() {
-	testIndexUid := "test"
-
-	incorrectData := []byte("{\"test\":1}")
 
 	err := s.adapter.SaveData(incorrectData, testIndexUid)
 	s.Error(err)
