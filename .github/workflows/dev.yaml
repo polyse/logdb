@@ -24,10 +24,13 @@ jobs:
         run: go get -v -t -d ./...
 
       - name: Build
-        run: go build -v .
+        run: make build
 
       - name: Test
-        run: go test -v ./...
+        run: make test
+
+      - name: Lint
+        run: go run github.com/golangci/golangci-lint/cmd/golangci-lint run
 
       - name: Lint
         run: |
