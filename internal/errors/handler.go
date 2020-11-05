@@ -32,23 +32,29 @@ func NewHandler(pCtx context.Context, conf *Config) (context.Context, chan<- err
 
 func asyncHandleError(pCtx context.Context, handler *Handler) context.Context {
 	ctx, cancelFunc := context.WithCancel(pCtx)
+
 	go func() {
 		for {
 			select {
-			case err := <-handler.errChan:
-				log.Warn().Err(err).Msg("handle error")
-				if atomic.AddUint32(&handler.errCount, 1) > handler.conf.MaxErrorCount {
-					cancelFunc()
-				}
 			case <-pCtx.Done():
 				return
 			case <-handler.ticker.C:
 				atomic.StoreUint32(&handler.errCount, 0)
+			case <-pCtx.Done():
+				return
+			case err := <-handler.errChan:
+				log.Warn().Err(err).Msg("handle error")
+				if atomic.AddUint32(&handler.errCount, 1) > handler.conf.MaxErrorCount {
+					log.Error().Msg("too many errors")
+					cancelFunc()
+					return
+				}
 			default:
-				time.Sleep(1 * time.Millisecond)
 			}
+			time.Sleep(1 * time.Millisecond)
 		}
 
 	}()
+
 	return ctx
 }
