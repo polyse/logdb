@@ -35,11 +35,12 @@ func (s *HandlerTestSuite) SetupTest() {
 	}
 	s.handler = handler
 
-	file, err := ioutil.TempFile(s.T().TempDir(), "test*.log")
+	tmpDir := s.T().TempDir()
+	tmpF, err := ioutil.TempFile(tmpDir, "test*.log")
 	s.NoError(err)
-	multyW := zerolog.MultiLevelWriter(file, os.Stdout)
+	multyW := zerolog.MultiLevelWriter(tmpF, os.Stdout)
 	log.Logger = zerolog.New(multyW).With().Logger()
-	s.logF = file
+	s.logF = tmpF
 	s.ctx = asyncHandleError(context.Background(), s.handler)
 
 }
