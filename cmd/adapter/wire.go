@@ -5,8 +5,8 @@ package main
 import (
 	"context"
 	"github.com/google/wire"
-	"github.com/polyse/logDb/internal/adapter"
-	"github.com/polyse/logDb/internal/api"
+	"github.com/polyse/logdb/internal/adapter"
+	"github.com/polyse/logdb/internal/api"
 )
 
 func initLogAdapterApi(ctx context.Context, c *config, ch chan<- error) (*api.API, func(), error) {

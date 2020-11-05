@@ -3,7 +3,7 @@ package adapter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/polyse/logDb/test/mock"
+	"github.com/polyse/logdb/test/mocks"
 	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -188,7 +188,7 @@ func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Presents_local() {
 
 	mockDocuments.On("AddOrReplace", mock.Anything).Times(1).Run(func(args mock.Arguments) {
 		actualRaw := args.Get(0).(ml.RawType)
-		actual := make([]testActualData, 0, 0)
+		actual := make([]testActualData, 0)
 		err := json.Unmarshal(actualRaw, &actual)
 
 		s.NoError(err)
@@ -229,7 +229,7 @@ func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Not_Presents_local() {
 
 	mockDocuments.On("AddOrReplace", mock.Anything).Times(2).Run(func(args mock.Arguments) {
 		if actualRaw, ok := args.Get(0).(ml.RawType); ok {
-			actual := make([]testActualData, 0, 0)
+			actual := make([]testActualData, 0)
 			err := json.Unmarshal(actualRaw, &actual)
 
 			s.NoError(err)

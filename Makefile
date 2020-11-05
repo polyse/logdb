@@ -5,7 +5,7 @@ INTEGRATION_TEST_PATH?=./test/integration
 
 all: test build run_server
 
-wire_build:
+wire:
 	wire gen ./cmd/adapter
 	echo "wire build"
 
@@ -17,8 +17,8 @@ run_server:
 	 LOG_LEVEL=debug $(BINARY_NAME)
 
 test:
-	mockery --srcpkg github.com/senyast4745/meilisearch-go --output ./test/mock --all
-	mockery --output ./test/mock --dir ./internal/adapter/ --all
+	mockery --srcpkg github.com/senyast4745/meilisearch-go --output ./test/mocks --all
+	mockery --output ./test/mocks --dir ./internal/adapter/ --all
 	$(GOCMD) test -v ./...
 
 test_integration:

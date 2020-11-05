@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/polyse/logDb/internal/adapter"
+	"github.com/polyse/logdb/internal/adapter"
 	"github.com/rs/zerolog/log"
 	atr "github.com/savsgio/atreugo/v11"
 	"net"

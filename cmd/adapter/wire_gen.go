@@ -7,8 +7,8 @@ package main
 
 import (
 	"context"
-	"github.com/polyse/logDb/internal/adapter"
-	"github.com/polyse/logDb/internal/api"
+	"github.com/polyse/logdb/internal/adapter"
+	"github.com/polyse/logdb/internal/api"
 )
 
 // Injectors from wire.go:

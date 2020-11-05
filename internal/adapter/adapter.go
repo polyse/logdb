@@ -85,8 +85,7 @@ func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
 	arr := ar.NewArray()
 	arr.SetArrayItem(0, val)
 	data = arr.MarshalTo(data[:0])
-	var raw ml.RawType
-	raw = data
+	raw := data
 
 	_, err = a.c.Documents(index.UID).AddOrReplace(raw)
 	if err != nil {
@@ -117,6 +116,7 @@ func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
 				kData.Keys = append(kData.Keys, k)
 			}
 			_, err = a.c.Documents(index.UID).AddOrReplace(kData)
+			return err
 		}
 	}
 

@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/polyse/logDb/internal/adapter"
-	"github.com/polyse/logDb/internal/api"
-	"github.com/polyse/logDb/internal/errors"
+	"github.com/polyse/logdb/internal/adapter"
+	"github.com/polyse/logdb/internal/api"
+	"github.com/polyse/logdb/internal/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	ml "github.com/senyast4745/meilisearch-go"
@@ -47,11 +47,10 @@ func main() {
 	}
 
 	go func() {
-		select {
-		case <-errCtx.Done():
-			log.Info().Msg("Stopping app")
-			closer.Close()
-		}
+		<-errCtx.Done()
+		log.Info().Msg("Stopping app")
+		closer.Close()
+
 	}()
 
 	if adapterApi.Run() != nil {
