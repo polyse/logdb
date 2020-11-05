@@ -54,13 +54,3 @@ jobs:
           repository: ${{ github.repository }}/adapter
           tag_with_ref: true
           tag_with_sha: true
-      - name: Update service
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.KEY }}
-          port: 22
-          script: |
-            docker pull docker.pkg.github.com/polyse/adapter:latest
-            docker service update --force adapter
