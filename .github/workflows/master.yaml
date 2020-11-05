@@ -1,0 +1,66 @@
+name: Go-master
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Get dependencies
+        run: go get -v -t -d ./...
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+      - name: Integration test
+        run: make test_integration
+
+      - name: Lint
+        run: |
+          go run github.com/golangci/golangci-lint/cmd/golangci-lint run
+          go get -u golang.org/x/lint/golint
+          /home/runner/go/bin/golint
+
+  push_to_registry:
+    name: Push Docker image to GitHub Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+      - name: Push to GitHub Packages
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          repository: ${{ github.repository }}/adapter
+          tag_with_ref: true
+          tag_with_sha: true
+      - name: Update service
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: 22
+          script: |
+            docker pull docker.pkg.github.com/polyse/adapter:latest
+            docker service update --force adapter
