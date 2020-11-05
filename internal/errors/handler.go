@@ -21,7 +21,7 @@ type Config struct {
 
 func NewHandler(pCtx context.Context, conf *Config) (context.Context, chan<- error) {
 	handler := &Handler{
-		errChan:  make(chan error, 100),
+		errChan:  make(chan error, conf.MaxErrorCount),
 		errCount: 0,
 		conf:     conf,
 		ticker:   time.NewTicker(conf.ResetTime),
@@ -45,8 +45,8 @@ func asyncHandleError(pCtx context.Context, handler *Handler) context.Context {
 			case <-handler.ticker.C:
 				atomic.StoreUint32(&handler.errCount, 0)
 			default:
+				time.Sleep(1 * time.Millisecond)
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 
 	}()
