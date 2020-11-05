@@ -60,7 +60,7 @@ func NewAdapter(conf *Config) (*SimpleAdapter, error) {
 }
 
 func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
-	index, err := getOrCreateIndex(a, indexUid)
+	index, err := a.getOrCreateIndex(indexUid)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
 	return nil
 }
 
-func getOrCreateIndex(a *SimpleAdapter, indexUid string) (index *ml.Index, err error) {
+func (a *SimpleAdapter) getOrCreateIndex(indexUid string) (index *ml.Index, err error) {
 	var ok bool
 	log.Debug().Str("index uid", indexUid).Msg("start finding index by uid")
 	if index, ok = a.ind[indexUid]; !ok {

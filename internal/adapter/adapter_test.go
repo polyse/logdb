@@ -68,7 +68,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Present_In_Local_Map() {
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := getOrCreateIndex(s.adapter, "test")
+	_, err := s.adapter.getOrCreateIndex("test")
 	s.NoError(err)
 	mockIndex.AssertNotCalled(s.T(), "Get", mock.Anything)
 
@@ -83,7 +83,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := getOrCreateIndex(s.adapter, indexNotFound)
+	_, err := s.adapter.getOrCreateIndex(indexNotFound)
 	s.NoError(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -99,7 +99,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := getOrCreateIndex(s.adapter, indexNotFound)
+	_, err := s.adapter.getOrCreateIndex(indexNotFound)
 	s.Error(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -116,7 +116,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := getOrCreateIndex(s.adapter, indexNotFound)
+	_, err := s.adapter.getOrCreateIndex(indexNotFound)
 	s.Error(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -143,7 +143,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	index, err := getOrCreateIndex(s.adapter, indexNotFound)
+	index, err := s.adapter.getOrCreateIndex(indexNotFound)
 	s.NoError(err)
 	expected := &ml.Index{
 		Name:       indexNotFound,
