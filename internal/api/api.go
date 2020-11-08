@@ -74,7 +74,7 @@ func (a *API) initRouter(ctx context.Context, l net.Listener, cfg atr.Config) fu
 		return cc.Next()
 	})
 	apiRouter.UseAfter(logRequest())
-	apiRouter.PUT("/logs/{tag:*}", a.HandleNewLog)
+	apiRouter.POST("/logs/{tag:*}", a.HandleNewLog)
 	apiRouter.GET("/health", func(ctx *atr.RequestCtx) error {
 		log.Debug().Msg("health check")
 		ctx.Response.SetStatusCode(http.StatusOK)

@@ -77,49 +77,92 @@ func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
 	defer a.arPool.Put(ar)
 	defer ar.Reset()
 
-	timeF := time.Now().Unix()
+	log.Debug().Str("data", val.String()).Msg("before adding fields")
+	if val, err = a.addUtilFields(val, ar); err != nil {
+		return err
+	}
+	data = val.MarshalTo(data[:0])
+	raw := ml.RawType(data)
 
-	val.Set("@id", ar.NewString(uuid.New().String()))
-	val.Set("@timestamp", ar.NewNumberInt(int(timeF)))
-
-	arr := ar.NewArray()
-	arr.SetArrayItem(0, val)
-	data = arr.MarshalTo(data[:0])
-	raw := data
+	log.Debug().Bytes("data", raw).Msg("raw request body")
 
 	_, err = a.c.Documents(index.UID).AddOrReplace(raw)
 	if err != nil {
 		return err
 	}
-	if o, err := val.Object(); err != nil {
-		return err
+
+	if va, err := val.Array(); err != nil {
+		return a.getAllKeys(val, index)
 	} else {
-		var strData string
-		nKeys := false
-		o.Visit(func(key []byte, v *fastjson.Value) {
-			strData = string(key)
-			if _, ok := a.keys[strData]; !ok {
-				a.kLock.Lock()
-				defer a.kLock.Unlock()
-				if _, ok := a.keys[strData]; !ok {
-					nKeys = true
-					a.keys[strData] = struct{}{}
-				}
+		for _, o := range va {
+			if err = a.getAllKeys(o, index); err != nil {
+				return err
 			}
-		})
-		if nKeys {
-			kData := &KeyData{
-				Id:   KeyId,
-				Keys: make([]string, 0, len(a.keys)),
-			}
-			for k := range a.keys {
-				kData.Keys = append(kData.Keys, k)
-			}
-			_, err = a.c.Documents(index.UID).AddOrReplace(kData)
-			return err
+		}
+
+	}
+	return nil
+}
+
+func (a *SimpleAdapter) addUtilFields(val *fastjson.Value, ar *fastjson.Arena) (*fastjson.Value, error) {
+	var (
+		vals []*fastjson.Value
+		err  error
+	)
+	timeF := time.Now().Unix()
+	if vals, err = val.Array(); err != nil {
+		if v, err := val.Object(); err != nil {
+			return nil, err
+		} else {
+			v.Set("@id", ar.NewString(uuid.New().String()))
+			v.Set("@timestamp", ar.NewNumberInt(int(timeF)))
+			arr := ar.NewArray()
+			arr.SetArrayItem(0, val)
+			return arr, nil
+		}
+	} else {
+		for _, v := range vals {
+			v.Set("@id", ar.NewString(uuid.New().String()))
+			v.Set("@timestamp", ar.NewNumberInt(int(timeF)))
 		}
 	}
+	return val, nil
+}
 
+func (a *SimpleAdapter) getAllKeys(val *fastjson.Value, index *ml.Index) (err error) {
+	var obj *fastjson.Object
+	if obj, err = val.Object(); err != nil {
+		return err
+	}
+	var strData string
+	nKeys := false
+	obj.Visit(func(key []byte, v *fastjson.Value) {
+		strData = string(key)
+		if _, ok := a.keys[strData]; !ok {
+			a.kLock.Lock()
+			defer a.kLock.Unlock()
+			if _, ok := a.keys[strData]; !ok {
+				nKeys = true
+				a.keys[strData] = struct{}{}
+			}
+		}
+	})
+	if nKeys {
+
+		kData := &KeyData{
+			Id:   KeyId,
+			Keys: make([]string, 0, len(a.keys)),
+		}
+		for k := range a.keys {
+			kData.Keys = append(kData.Keys, k)
+		}
+		log.Debug().Interface("new keys", kData).Msg("new logs founded")
+		_, err := a.c.Documents(index.UID).AddOrReplace([]*KeyData{kData})
+		if err != nil {
+			a.keys = make(map[string]struct{})
+		}
+		return err
+	}
 	return nil
 }
 
