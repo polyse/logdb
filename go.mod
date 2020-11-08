@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
+	github.com/fluent/fluent-bit-go v0.0.0-20200729034236-b9c0d6a20853 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golangci/golangci-lint v1.32.2 // indirect
 	github.com/google/go-cmp v0.5.2 // indirect
