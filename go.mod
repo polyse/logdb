@@ -4,9 +4,8 @@ go 1.15
 
 require (
 	github.com/caarlos0/env v3.5.0+incompatible
-	github.com/fluent/fluent-bit-go v0.0.0-20200729034236-b9c0d6a20853 // indirect
+	github.com/fluent/fluent-bit-go v0.0.0-20200729034236-b9c0d6a20853
 	github.com/gogo/protobuf v1.2.1 // indirect
-	github.com/golangci/golangci-lint v1.32.2 // indirect
 	github.com/google/go-cmp v0.5.2 // indirect
 	github.com/google/uuid v1.1.2
 	github.com/google/wire v0.4.0
@@ -28,7 +27,6 @@ require (
 	github.com/xlab/closer v0.0.0-20190328110542-03326addb7c2
 	golang.org/x/sys v0.0.0-20201009025420-dfb3f7c4e634 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
-	golang.org/x/tools v0.0.0-20201105001634-bc3cf281b174 // indirect
 	google.golang.org/genproto v0.0.0-20191108220845-16a3f7862a1a // indirect
 	google.golang.org/grpc v1.21.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
