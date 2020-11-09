@@ -10,16 +10,11 @@ import (
 	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/ugorji/go/codec"
 	"github.com/valyala/fasthttp"
-	"github.com/valyala/fastjson"
 	"io"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
-)
-
-var (
-	arPool fastjson.ArenaPool
 )
 
 type FBAdapter struct {
@@ -31,27 +26,6 @@ type FBAdapter struct {
 }
 
 type RawData map[string]interface{}
-
-func (r RawData) MarshalJSON() ([]byte, error) {
-	log.Debug().Msg("start parsed")
-	ar := arPool.Get()
-	defer arPool.Put(ar)
-	defer ar.Reset()
-	val := ar.NewObject()
-	for k, v := range r {
-		if v, ok := v.(json.Marshaler); ok {
-			b, err := v.MarshalJSON()
-			if err != nil {
-				return nil, err
-			}
-			val.Set(k, ar.NewStringBytes(b))
-		}
-	}
-	var data []byte
-	data = val.MarshalTo(data)
-	log.Debug().Bytes("data", data).Msg("parsed")
-	return data, nil
-}
 
 func NewFBAdapter(cfg *Config) (*FBAdapter, error) {
 	var err error
@@ -87,7 +61,7 @@ func (a *FBAdapter) SaveData(data []byte, tag string) error {
 	}
 	h := new(codec.MsgpackHandle)
 	mpdec := codec.NewDecoderBytes(data, h)
-	var sdata []map[string]interface{}
+	var sdata []RawData
 	nKeys := false
 	for {
 		err, ts, rec := decode(mpdec)
@@ -131,8 +105,8 @@ func (a *FBAdapter) SaveData(data []byte, tag string) error {
 func checkKeysContains(rec map[interface{}]interface{}, prData RawData, a *FBAdapter, nKeys bool) bool {
 	for k, v := range rec {
 		sk := k.(string)
-		prData[sk] = ml.RawType(v.([]byte))
-		log.Debug().Bytes("test", v.([]byte)).Msg("test me")
+		prData[sk] = v
+		log.Debug().Interface("test", prData[sk]).Msg("test me")
 		if _, ok := a.keys[sk]; !ok {
 			func() {
 				a.kLock.Lock()
@@ -144,7 +118,8 @@ func checkKeysContains(rec map[interface{}]interface{}, prData RawData, a *FBAda
 			}()
 		}
 	}
-	log.Debug().Interface("pr pr", prData).Msg("data data data")
+	test, _ := json.Marshal(prData)
+	log.Debug().Bytes("pr pr", test).Msg("data data data")
 	return nKeys
 }
 
