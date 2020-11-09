@@ -4,6 +4,7 @@ import (
 	"C"
 	"fmt"
 	"github.com/fluent/fluent-bit-go/output"
+	"github.com/rs/zerolog/log"
 	"time"
 	"unsafe"
 )
@@ -29,6 +30,8 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 	var ret int
 	var ts interface{}
 	var record map[interface{}]interface{}
+
+	log.Debug().Msg("Staaaart this shit")
 
 	// Create Fluent Bit decoder
 	dec := output.NewDecoder(data, int(length))
