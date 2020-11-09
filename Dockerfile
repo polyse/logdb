@@ -12,8 +12,6 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=0 /app .
-CMD mkdir /var/data
-ENV DB_FILE /var/data
 ENV LOG_FMT json
 ENV LISTEN 0.0.0.0:9000
 ENTRYPOINT ["/app/app"]

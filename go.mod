@@ -22,6 +22,7 @@ require (
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/stretchr/testify v1.6.1
 	github.com/testcontainers/testcontainers-go v0.9.0
+	github.com/ugorji/go/codec v1.1.7
 	github.com/valyala/fasthttp v1.16.0
 	github.com/valyala/fastjson v1.6.1
 	github.com/xlab/closer v0.0.0-20190328110542-03326addb7c2

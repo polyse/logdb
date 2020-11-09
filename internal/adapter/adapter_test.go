@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"net/http"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -31,6 +32,10 @@ func (s *AdapterUnitTestSuite) SetupTest() {
 	}
 	s.adapter = adapter
 	s.mockClient = mockClient
+
+	var err error
+	regex, err = regexp.Compile("[^a-zA-Z0-9]+")
+	s.NoError(err)
 }
 
 func TestRunAdapterUnitTestSuite(t *testing.T) {
@@ -68,7 +73,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Present_In_Local_Map() {
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := s.adapter.getOrCreateIndex("test")
+	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, "test")
 	s.NoError(err)
 	mockIndex.AssertNotCalled(s.T(), "Get", mock.Anything)
 
@@ -83,7 +88,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := s.adapter.getOrCreateIndex(indexNotFound)
+	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, indexNotFound)
 	s.NoError(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -99,7 +104,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := s.adapter.getOrCreateIndex(indexNotFound)
+	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, indexNotFound)
 	s.Error(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -116,7 +121,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	_, err := s.adapter.getOrCreateIndex(indexNotFound)
+	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, indexNotFound)
 	s.Error(err)
 	mockIndex.AssertCalled(s.T(), "Get", indexNotFound)
 	mockIndex.AssertNotCalled(s.T(), "Create", mock.Anything)
@@ -143,7 +148,7 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Not_Present_In_Local_Map
 
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
-	index, err := s.adapter.getOrCreateIndex(indexNotFound)
+	index, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, indexNotFound)
 	s.NoError(err)
 	expected := &ml.Index{
 		Name:       indexNotFound,
@@ -208,6 +213,7 @@ func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Presents_local() {
 
 func (s *AdapterUnitTestSuite) Test_SaveData_Keys_Not_Presents_local() {
 	// given
+
 	testIndexUid := "test"
 	testData := struct {
 		Test string `json:"test"`
