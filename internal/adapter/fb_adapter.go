@@ -105,7 +105,11 @@ func (a *FBAdapter) SaveData(data []byte, tag string) error {
 func checkKeysContains(rec map[interface{}]interface{}, prData RawData, a *FBAdapter, nKeys bool) bool {
 	for k, v := range rec {
 		sk := k.(string)
-		prData[sk] = v
+		if nv, ok := v.([]byte); ok {
+			prData[sk] = string(nv)
+		} else {
+			prData[sk] = v
+		}
 		log.Debug().Interface("test", prData[sk]).Msg("test me")
 		if _, ok := a.keys[sk]; !ok {
 			func() {
