@@ -1,4 +1,4 @@
-name: Non-master-check
+name: Check
 
 on:
   push:
