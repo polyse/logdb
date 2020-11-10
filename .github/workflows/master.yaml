@@ -48,9 +48,10 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Docker meta adapter
-        id: docker_meta_a
+        id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
+          tag-match: \d{1,3}.\d{1,3}.\d{1,3}
           images: polyse/log-adapter
           tag-sha: true # add git short SHA as Docker tag
       - name: Set up Docker Buildx
@@ -71,9 +72,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: |
-            latest
-            ${{ steps.docker_meta_a.outputs.tags }}
-          labels: ${{ steps.docker_meta_a.outputs.labels }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
