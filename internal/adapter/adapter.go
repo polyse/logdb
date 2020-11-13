@@ -7,12 +7,15 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fastjson"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 )
 
+var regex *regexp.Regexp
+
 type Adapter interface {
-	SaveData(data []byte, indexUid string) error
+	SaveData([]byte, string) error
 	DatabaseHealthCheck() error
 }
 
@@ -31,14 +34,13 @@ type Config struct {
 	Timeout time.Duration
 }
 
-type KeyData struct {
-	Id   string `json:"@id"`
-	Keys []string
-}
-
-const KeyId = "key"
-
 func NewAdapter(conf *Config) (*SimpleAdapter, error) {
+	var err error
+	regex, err = regexp.Compile("[^a-zA-Z0-9]+")
+	if err != nil {
+		return nil, err
+	}
+
 	client := &fasthttp.Client{
 		WriteTimeout: conf.Timeout,
 		ReadTimeout:  conf.Timeout,
@@ -59,13 +61,15 @@ func NewAdapter(conf *Config) (*SimpleAdapter, error) {
 	return adapter, nil
 }
 
-func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
-	index, err := a.getOrCreateIndex(indexUid)
+func (a *SimpleAdapter) SaveData(data []byte, tag string) error {
+	tag = regex.ReplaceAllString(tag, "")
+	index, err := getOrCreateIndex(a.ind, &a.lock, a.c, tag)
 	if err != nil {
 		return err
 	}
 	p := a.pPool.Get()
 	defer a.pPool.Put(p)
+
 	log.Debug().Bytes("data", data).Msg("request data")
 
 	val, err := p.ParseBytes(data)
@@ -77,61 +81,115 @@ func (a *SimpleAdapter) SaveData(data []byte, indexUid string) error {
 	defer a.arPool.Put(ar)
 	defer ar.Reset()
 
-	timeF := time.Now().Unix()
+	log.Debug().Str("data", val.String()).Msg("before adding fields")
+	if val, err = a.addUtilFields(val, ar); err != nil {
+		return err
+	}
+	data = val.MarshalTo(data[:0])
+	raw := ml.RawType(data)
 
-	val.Set("@id", ar.NewString(uuid.New().String()))
-	val.Set("@timestamp", ar.NewNumberInt(int(timeF)))
-
-	arr := ar.NewArray()
-	arr.SetArrayItem(0, val)
-	data = arr.MarshalTo(data[:0])
-	raw := data
+	log.Debug().Bytes("data", raw).Msg("raw request body")
 
 	_, err = a.c.Documents(index.UID).AddOrReplace(raw)
 	if err != nil {
 		return err
 	}
-	if o, err := val.Object(); err != nil {
-		return err
+
+	if va, err := val.Array(); err != nil {
+		return a.getAllKeys(val, index)
 	} else {
-		var strData string
-		nKeys := false
-		o.Visit(func(key []byte, v *fastjson.Value) {
-			strData = string(key)
-			if _, ok := a.keys[strData]; !ok {
-				a.kLock.Lock()
-				defer a.kLock.Unlock()
-				if _, ok := a.keys[strData]; !ok {
-					nKeys = true
-					a.keys[strData] = struct{}{}
-				}
+		for _, o := range va {
+			if err = a.getAllKeys(o, index); err != nil {
+				return err
 			}
-		})
-		if nKeys {
-			kData := &KeyData{
-				Id:   KeyId,
-				Keys: make([]string, 0, len(a.keys)),
-			}
-			for k := range a.keys {
-				kData.Keys = append(kData.Keys, k)
-			}
-			_, err = a.c.Documents(index.UID).AddOrReplace(kData)
-			return err
 		}
 	}
-
 	return nil
 }
 
-func (a *SimpleAdapter) getOrCreateIndex(indexUid string) (index *ml.Index, err error) {
+func (a *SimpleAdapter) addUtilFields(val *fastjson.Value, ar *fastjson.Arena) (*fastjson.Value, error) {
+	var (
+		vals []*fastjson.Value
+		err  error
+	)
+	tsu := time.Now().Unix()
+	if vals, err = val.Array(); err != nil {
+		if v, err := val.Object(); err != nil {
+			return nil, err
+		} else {
+			v.Set(IdF, ar.NewString(uuid.New().String()))
+			v.Set(TimestampF, ar.NewNumberInt(int(tsu)))
+			arr := ar.NewArray()
+			arr.SetArrayItem(0, val)
+			return arr, nil
+		}
+	} else {
+		for _, v := range vals {
+			v.Set(IdF, ar.NewString(uuid.New().String()))
+			v.Set(TimestampF, ar.NewNumberInt(int(tsu)))
+		}
+	}
+	return val, nil
+}
+
+func (a *SimpleAdapter) getAllKeys(val *fastjson.Value, index *ml.Index) (err error) {
+	var obj *fastjson.Object
+	if obj, err = val.Object(); err != nil {
+		return err
+	}
+	var strData string
+	nKeys := false
+	obj.Visit(func(key []byte, v *fastjson.Value) {
+		strData = string(key)
+		if _, ok := a.keys[strData]; !ok {
+			a.kLock.Lock()
+			defer a.kLock.Unlock()
+			if _, ok := a.keys[strData]; !ok {
+				nKeys = true
+				a.keys[strData] = struct{}{}
+			}
+		}
+	})
+	if nKeys {
+
+		return sendNewKeysToDb(a.keys, a.c, index)
+	}
+	return nil
+}
+
+type KeyData struct {
+	Id        string `json:"@id"`
+	Keys      []string
+	Timestamp time.Time `json:"@timestamp"`
+}
+
+func sendNewKeysToDb(keys map[string]struct{}, c ml.ClientInterface, index *ml.Index) error {
+	kData := &KeyData{
+		Id:        KeyId,
+		Keys:      make([]string, 0, len(keys)),
+		Timestamp: time.Now(),
+	}
+	for k := range keys {
+		kData.Keys = append(kData.Keys, k)
+	}
+	log.Debug().Interface("new keys", kData).Msg("new logs founded")
+	_, err := c.Documents(index.UID).AddOrReplace([]*KeyData{kData})
+	if err != nil {
+		keys = make(map[string]struct{})
+		return err
+	}
+	return nil
+}
+
+func getOrCreateIndex(ind map[string]*ml.Index, lock *sync.Mutex, c ml.ClientInterface, indexUid string) (index *ml.Index, err error) {
 	var ok bool
 	log.Debug().Str("index uid", indexUid).Msg("start finding index by uid")
-	if index, ok = a.ind[indexUid]; !ok {
+	if index, ok = ind[indexUid]; !ok {
 
-		a.lock.Lock()
-		defer a.lock.Unlock()
-		if index, ok = a.ind[indexUid]; !ok {
-			apiInd := a.c.Indexes()
+		lock.Lock()
+		defer lock.Unlock()
+		if index, ok = ind[indexUid]; !ok {
+			apiInd := c.Indexes()
 			if index, err = apiInd.Get(indexUid); index == nil {
 				if cliErr, ok := err.(*ml.Error); ok {
 					if cliErr.StatusCode != http.StatusNotFound {
@@ -159,7 +217,7 @@ func (a *SimpleAdapter) getOrCreateIndex(indexUid string) (index *ml.Index, err 
 				return nil, err
 			}
 		}
-		a.ind[index.UID] = index
+		ind[index.UID] = index
 	}
 	log.Debug().Str("index uid", index.UID).Msg("using index")
 	return index, nil
