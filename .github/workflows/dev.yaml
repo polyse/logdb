@@ -1,4 +1,4 @@
-name: Non-master-check
+name: Check
 
 on:
   push:
@@ -28,9 +28,6 @@ jobs:
 
       - name: Test
         run: make test
-
-      - name: Lint
-        run: go run github.com/golangci/golangci-lint/cmd/golangci-lint run
 
       - name: Lint
         run: |
