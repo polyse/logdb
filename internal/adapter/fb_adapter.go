@@ -6,12 +6,15 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/google/uuid"
 	ml "github.com/meilisearch/meilisearch-go"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/ugorji/go/codec"
 	"github.com/valyala/fasthttp"
 	"io"
+	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,17 +31,25 @@ type FBAdapter struct {
 
 type RawData map[string]interface{}
 
-func NewFBAdapter(cfg *Config) (*FBAdapter, error) {
+func NewFBAdapter() (*FBAdapter, error) {
 	var err error
 	regex, err = regexp.Compile("[^a-zA-Z0-9]+")
 	if err != nil {
 		return nil, err
 	}
-	client := &fasthttp.Client{
-		WriteTimeout: cfg.Timeout,
-		ReadTimeout:  cfg.Timeout,
+	cfg, err := load()
+	if err != nil {
+		return nil, err
 	}
-	c := ml.NewFastHTTPCustomClient(cfg.Config, client)
+	if err = initLogger(cfg); err != nil {
+		return nil, err
+	}
+
+	client := &fasthttp.Client{
+		WriteTimeout: cfg.DbTimeout,
+		ReadTimeout:  cfg.DbTimeout,
+	}
+	c := ml.NewFastHTTPCustomClient(createMLConf(cfg), client)
 
 	indexes, err := c.Indexes().List()
 	if err != nil {
@@ -52,6 +63,23 @@ func NewFBAdapter(cfg *Config) (*FBAdapter, error) {
 	keys := make(map[string]struct{})
 	adapter := &FBAdapter{c: c, ind: indexMap, keys: keys}
 	return adapter, nil
+}
+
+func initLogger(c *fbConfig) error {
+	log.Debug().Msg("initialize logger")
+	logLvl, err := zerolog.ParseLevel(strings.ToLower(c.LogLevel))
+	if err != nil {
+		return err
+	}
+	zerolog.SetGlobalLevel(logLvl)
+	switch c.LogFmt {
+	case "console":
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+	case "json":
+	default:
+		return fmt.Errorf("unknown output format %s", c.LogFmt)
+	}
+	return nil
 }
 
 func (a *FBAdapter) SaveData(data []byte, tag string) error {
@@ -181,4 +209,11 @@ type Err struct {
 
 func (e *Err) GetCode() int {
 	return e.code
+}
+
+func createMLConf(cfg *fbConfig) ml.Config {
+	return ml.Config{
+		Host:   cfg.DbAddr,
+		APIKey: cfg.ApiKey,
+	}
 }

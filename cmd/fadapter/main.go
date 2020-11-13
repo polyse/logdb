@@ -2,12 +2,9 @@ package main
 
 import (
 	"C"
-	"fmt"
 	"github.com/fluent/fluent-bit-go/output"
-	"github.com/meilisearch/meilisearch-go"
 	"github.com/polyse/logdb/internal/adapter"
 	"github.com/rs/zerolog/log"
-	"time"
 	"unsafe"
 )
 
@@ -24,19 +21,12 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	// Example to retrieve an optional configuration parameter
 	param := output.FLBPluginConfigKey(plugin, "param")
-	fmt.Printf("[flb-go] plugin parameter = '%s'\n", param)
+	log.Info().Msgf("[flb-go] plugin parameter = '%s'\n", param)
 
-	cfg := &adapter.Config{
-		Config: meilisearch.Config{
-			Host:   "http://mlsearch:7700",
-			APIKey: "",
-		},
-		Timeout: 1 * time.Second,
-	}
 	var err error
-	adp, err = adapter.NewFBAdapter(cfg)
+	adp, err = adapter.NewFBAdapter()
 	if err != nil {
-		log.Debug().Err(err).Msg("error while init adapter")
+		log.Err(err).Msg("error while init adapter")
 		return output.FLB_ERROR
 	}
 
