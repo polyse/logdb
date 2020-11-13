@@ -4,9 +4,9 @@ import (
 	"C"
 	"fmt"
 	"github.com/fluent/fluent-bit-go/output"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/polyse/logdb/internal/adapter"
 	"github.com/rs/zerolog/log"
-	"github.com/senyast4745/meilisearch-go"
 	"time"
 	"unsafe"
 )

@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	ml "github.com/meilisearch/meilisearch-go"
 	"github.com/polyse/logdb/internal/adapter"
 	"github.com/polyse/logdb/internal/api"
 	"github.com/polyse/logdb/internal/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/xlab/closer"
 
 	"os"

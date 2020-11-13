@@ -1,7 +1,7 @@
 GOCMD=go
 GOBUILD=$(GOCMD) build
 BINARY_NAME=./bin/adapter
-INTEGRATION_TEST_PATH?=./test/integration
+INTEGRATION_TEST_PATH?=./test/integration/
 
 all: test build run_server
 
@@ -22,4 +22,4 @@ test:
 	$(GOCMD) test -v ./...
 
 test_integration:
-	$(GOCMD) test -tags=integration $(INTEGRATION_TEST_PATH) -count=1 -run=$(INTEGRATION_TEST_SUITE_PATH)
+	$(GOCMD) test -v -tags=integration $(INTEGRATION_TEST_PATH) -count=1 -run=$(INTEGRATION_TEST_SUITE_PATH)

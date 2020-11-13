@@ -3,8 +3,8 @@ package adapter
 import (
 	"encoding/json"
 	"fmt"
+	ml "github.com/meilisearch/meilisearch-go"
 	"github.com/polyse/logdb/test/mocks"
-	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"net/http"
@@ -74,6 +74,20 @@ func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Present_In_Local_Map() {
 	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
 
 	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, "test")
+	s.NoError(err)
+	mockIndex.AssertNotCalled(s.T(), "Get", mock.Anything)
+
+}
+
+func (s *AdapterUnitTestSuite) Test_GetOrCreateIndex_If_Present_In_Local_Map_With_Regex() {
+
+	mockIndex := new(mocks.APIIndexes)
+
+	mockIndex.On("Get", mock.Anything).Times(0).Return(&ml.Index{}, nil)
+
+	s.mockClient.On("Indexes", mock.Anything).Return(mockIndex)
+
+	_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, "test!")
 	s.NoError(err)
 	mockIndex.AssertNotCalled(s.T(), "Get", mock.Anything)
 

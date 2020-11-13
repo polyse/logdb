@@ -3,20 +3,23 @@ services:
   fluent:
     image: fluent/fluentd:edge
     volumes:
-    - ./test.conf:/fluentd/etc/test.conf
+      - ./conf/test.conf:/fluentd/etc/test.conf
     environment:
       FLUENTD_CONF: test.conf
     ports:
-    - 24224:24224
+      - 5170:5170
   mlsearch:
     image: getmeili/meilisearch
     ports:
-    - 7700:7700
+      - 7700:7700
   adapter:
-    image: polyse/adapter
+    build:
+      context: ../../.
+      dockerfile: Dockerfile.fd.test
     ports:
       - 9000:9000
     environment:
       DB_ADDR: http://mlsearch:7700
     depends_on:
+      - fluent
       - mlsearch

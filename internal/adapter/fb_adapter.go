@@ -2,12 +2,11 @@ package adapter
 
 import "C"
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/google/uuid"
+	ml "github.com/meilisearch/meilisearch-go"
 	"github.com/rs/zerolog/log"
-	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/ugorji/go/codec"
 	"github.com/valyala/fasthttp"
 	"io"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"time"
 )
+
+var h = new(codec.MsgpackHandle)
 
 type FBAdapter struct {
 	c     ml.ClientInterface
@@ -54,18 +55,18 @@ func NewFBAdapter(cfg *Config) (*FBAdapter, error) {
 }
 
 func (a *FBAdapter) SaveData(data []byte, tag string) error {
-	tag = regex.ReplaceAllString(tag, "")
 	ind, err := getOrCreateIndex(a.ind, &a.lock, a.c, tag)
 	if err != nil {
 		return err
 	}
-	h := new(codec.MsgpackHandle)
+
+	log.Debug().Bytes("recieved", data).Msg("new data")
+
 	mpdec := codec.NewDecoderBytes(data, h)
 	var sdata []RawData
-	nKeys := false
+	var nKeys bool
 	for {
-		err, ts, rec := decode(mpdec)
-
+		ts, rec, err := decode(mpdec)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -74,17 +75,23 @@ func (a *FBAdapter) SaveData(data []byte, tag string) error {
 		}
 		prData := make(RawData)
 
-		nKeys = checkKeysContains(rec, prData, a, nKeys)
+		rec[IdF] = uuid.New().String()
+		rec[TimestampF] = getTs(ts)
 
-		tsp := getTs(ts)
-		prData[IdF] = uuid.New().String()
-		prData[TimestampF] = tsp
+		k, err := checkKeysContains(rec, &prData, a)
+		if k {
+			nKeys = k
+		}
+		if err != nil {
+			return err
+		}
 		sdata = append(sdata, prData)
 	}
 
 	if nKeys {
 		err := sendNewKeysToDb(a.keys, a.c, ind)
 		if err != nil {
+			a.keys = make(map[string]struct{})
 			return err
 		}
 	}
@@ -102,15 +109,20 @@ func (a *FBAdapter) SaveData(data []byte, tag string) error {
 	return nil
 }
 
-func checkKeysContains(rec map[interface{}]interface{}, prData RawData, a *FBAdapter, nKeys bool) bool {
+func checkKeysContains(rec map[interface{}]interface{}, prData *RawData, a *FBAdapter) (nKeys bool, err error) {
+	if *prData == nil {
+		*prData = make(RawData)
+	}
 	for k, v := range rec {
-		sk := k.(string)
-		if nv, ok := v.([]byte); ok {
-			prData[sk] = string(nv)
-		} else {
-			prData[sk] = v
+		sk, ok := k.(string)
+		if !ok || k == nil {
+			return false, fmt.Errorf("unsupported key %+v", k)
 		}
-		log.Debug().Interface("test", prData[sk]).Msg("test me")
+		if nv, ok := v.([]byte); ok {
+			(*prData)[sk] = string(nv)
+		} else {
+			(*prData)[sk] = v
+		}
 		if _, ok := a.keys[sk]; !ok {
 			func() {
 				a.kLock.Lock()
@@ -122,9 +134,7 @@ func checkKeysContains(rec map[interface{}]interface{}, prData RawData, a *FBAda
 			}()
 		}
 	}
-	test, _ := json.Marshal(prData)
-	log.Debug().Bytes("pr pr", test).Msg("data data data")
-	return nKeys
+	return nKeys, nil
 }
 
 func getTs(ts interface{}) (timestamp time.Time) {
@@ -140,16 +150,16 @@ func getTs(ts interface{}) (timestamp time.Time) {
 	return
 }
 
-func decode(mpdec *codec.Decoder) (err error, t interface{}, rec map[interface{}]interface{}) {
+func decode(mpdec *codec.Decoder) (t interface{}, rec map[interface{}]interface{}, err error) {
 	var m interface{}
 
-	if err := mpdec.Decode(&m); err != nil {
-		return err, 0, nil
+	if err = mpdec.Decode(&m); err != nil {
+		return 0, nil, err
 	}
 
 	slice := reflect.ValueOf(m)
 	if slice.Kind() != reflect.Slice || slice.Len() != 2 {
-		return fmt.Errorf("unknown type"), 0, nil
+		return 0, nil, fmt.Errorf("unknown type")
 	}
 
 	t = slice.Index(0).Interface()

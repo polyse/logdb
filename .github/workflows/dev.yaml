@@ -30,9 +30,6 @@ jobs:
         run: make test
 
       - name: Lint
-        run: go run github.com/golangci/golangci-lint/cmd/golangci-lint run
-
-      - name: Lint
         run: |
           go run github.com/golangci/golangci-lint/cmd/golangci-lint run
           go get -u golang.org/x/lint/golint

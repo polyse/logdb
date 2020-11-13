@@ -2,8 +2,8 @@ package adapter
 
 import (
 	"github.com/google/uuid"
+	ml "github.com/meilisearch/meilisearch-go"
 	"github.com/rs/zerolog/log"
-	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fastjson"
 	"net/http"
@@ -62,7 +62,6 @@ func NewAdapter(conf *Config) (*SimpleAdapter, error) {
 }
 
 func (a *SimpleAdapter) SaveData(data []byte, tag string) error {
-	tag = regex.ReplaceAllString(tag, "")
 	index, err := getOrCreateIndex(a.ind, &a.lock, a.c, tag)
 	if err != nil {
 		return err
@@ -152,7 +151,9 @@ func (a *SimpleAdapter) getAllKeys(val *fastjson.Value, index *ml.Index) (err er
 	})
 	if nKeys {
 
-		return sendNewKeysToDb(a.keys, a.c, index)
+		if err = sendNewKeysToDb(a.keys, a.c, index); err != nil {
+			a.keys = make(map[string]struct{})
+		}
 	}
 	return nil
 }
@@ -175,22 +176,22 @@ func sendNewKeysToDb(keys map[string]struct{}, c ml.ClientInterface, index *ml.I
 	log.Debug().Interface("new keys", kData).Msg("new logs founded")
 	_, err := c.Documents(index.UID).AddOrReplace([]*KeyData{kData})
 	if err != nil {
-		keys = make(map[string]struct{})
 		return err
 	}
 	return nil
 }
 
-func getOrCreateIndex(ind map[string]*ml.Index, lock *sync.Mutex, c ml.ClientInterface, indexUid string) (index *ml.Index, err error) {
+func getOrCreateIndex(ind map[string]*ml.Index, lock *sync.Mutex, c ml.ClientInterface, tag string) (index *ml.Index, err error) {
+	tag = regex.ReplaceAllString(tag, "")
 	var ok bool
-	log.Debug().Str("index uid", indexUid).Msg("start finding index by uid")
-	if index, ok = ind[indexUid]; !ok {
+	log.Debug().Str("index uid", tag).Msg("start finding index by uid")
+	if index, ok = ind[tag]; !ok {
 
 		lock.Lock()
 		defer lock.Unlock()
-		if index, ok = ind[indexUid]; !ok {
+		if index, ok = ind[tag]; !ok {
 			apiInd := c.Indexes()
-			if index, err = apiInd.Get(indexUid); index == nil {
+			if index, err = apiInd.Get(tag); index == nil {
 				if cliErr, ok := err.(*ml.Error); ok {
 					if cliErr.StatusCode != http.StatusNotFound {
 						return nil, err
@@ -199,7 +200,7 @@ func getOrCreateIndex(ind map[string]*ml.Index, lock *sync.Mutex, c ml.ClientInt
 					return nil, err
 				}
 				crInd := ml.CreateIndexRequest{
-					UID: indexUid,
+					UID: tag,
 				}
 				if indResp, err := apiInd.Create(crInd); err == nil {
 					log.Debug().Interface("created", indResp).Msg("index created")

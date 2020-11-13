@@ -5,9 +5,11 @@ services:
     ports:
       - 7700:7700
   adapter:
-    image: polyse/fadapter
+    build:
+      context: ../../.
+      dockerfile: Dockerfile.test
     ports:
-      - 9000:9000
+      - 5170:5170
     environment:
       DB_ADDR: http://mlsearch:7700
     depends_on:

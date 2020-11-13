@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	ml "github.com/meilisearch/meilisearch-go"
 	"github.com/mitchellh/mapstructure"
-	ml "github.com/senyast4745/meilisearch-go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	tsc "github.com/testcontainers/testcontainers-go"
@@ -92,7 +92,7 @@ func (s *AdapterIntegrationTestSuite) Test_GetOrCreateIndex_Normal_Mode() {
 	}
 
 	for _, ti := range testIndexes {
-		_, err := getOrCreateIndex(s.adapter, ti)
+		_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, ti)
 		s.NoError(err)
 	}
 
@@ -117,7 +117,7 @@ func (s *AdapterIntegrationTestSuite) Test_GetOrCreateIndex_Error() {
 	_ = s.mlC.Terminate(s.ctx)
 
 	for _, ti := range testIndexes {
-		_, err := getOrCreateIndex(s.adapter, ti)
+		_, err := getOrCreateIndex(s.adapter.ind, &s.adapter.lock, s.adapter.c, ti)
 		s.Error(err)
 	}
 
